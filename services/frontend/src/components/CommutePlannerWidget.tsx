@@ -53,6 +53,21 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
   const [selectedDate, setSelectedDate] = useState(
     new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Tomorrow
   );
+
+  // Helper function to format date without timezone issues
+  const formatDateSafe = (dateString: string) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed
+    return date.toLocaleDateString();
+  };
+
+  // Helper function to convert Date object to YYYY-MM-DD string in local timezone
+  const dateToLocalString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [jobResults, setJobResults] = useState<any>(null);
   const [error, setError] = useState<string>('');
@@ -229,10 +244,10 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
             {upcomingDates.map(date => (
               <button
                 key={date.toISOString()}
-                onClick={() => setSelectedDate(date.toISOString().split('T')[0])}
+                onClick={() => setSelectedDate(dateToLocalString(date))}
                 disabled={!enabled || !!activeJobId}
                 className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
-                  selectedDate === date.toISOString().split('T')[0]
+                  selectedDate === dateToLocalString(date)
                     ? 'bg-blue-100 border-blue-300 text-blue-800'
                     : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
                 } ${(!enabled || !!activeJobId) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -290,7 +305,7 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
             ) : (
               <>
                 <span>🚀</span>
-                Plan My Commute for {new Date(selectedDate).toLocaleDateString()}
+                Plan My Commute for {formatDateSafe(selectedDate)}
               </>
             )}
           </button>
@@ -349,7 +364,7 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
           
           <div className="space-y-3">
             <div className="text-sm text-green-700">
-              ✅ AI analysis completed for {new Date(selectedDate).toLocaleDateString()}
+              ✅ AI analysis completed for {formatDateSafe(selectedDate)}
             </div>
             
             {/* Display recommendations here */}
