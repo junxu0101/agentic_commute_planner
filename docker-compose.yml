@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: commute_planner
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: commute_planner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schemas:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commute_planner"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend Service (Go)
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://commute_planner:dev_password@postgres:5432/commute_planner?sslmode=disable
+      - PORT=8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/backend:/app
+      - /app/bin
+    command: ["./main"]
+
+  # Redis for event-driven architecture
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # AI Service (Python)
+  ai-service:
+    build:
+      context: ./services/ai-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - BACKEND_SERVICE_URL=http://backend:8080/graphql
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - GOOGLE_CALENDAR_CREDENTIALS_PATH=/app/credentials.json
+      - USE_MOCK_TOOLS=true
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/ai-service:/app
+      - ./credentials:/app/credentials
+
+  # Gateway (Node.js)
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - BACKEND_SERVICE_URL=http://backend:8080/graphql
+      - AI_SERVICE_URL=http://ai-service:8000/graphql
+      - REDIS_URL=redis://redis:6379
+      - REDIS_JOB_QUEUE=commute_jobs
+      - REDIS_PROGRESS_CHANNEL=job_progress
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    volumes:
+      - ./services/gateway:/app
+      - /app/node_modules
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_GATEWAY_URL=http://localhost:4000/graphql
+      - REACT_APP_WS_URL=ws://localhost:4000/graphql
+    depends_on:
+      - gateway
+    volumes:
+      - ./services/frontend:/app
+      - /app/node_modules
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+  redis_data:

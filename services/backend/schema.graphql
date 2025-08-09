@@ -1,0 +1,178 @@
+scalar Time
+
+enum JobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum CommuteOptionType {
+  FULL_DAY_OFFICE
+  STRATEGIC_AFTERNOON
+  FULL_REMOTE_RECOMMENDED
+}
+
+enum MeetingType {
+  CLIENT_MEETING
+  PRESENTATION
+  TEAM_WORKSHOP
+  INTERVIEW
+  STAKEHOLDER_MEETING
+  ONE_ON_ONE
+  STATUS_UPDATE
+  REVIEW
+  BRAINSTORMING
+  CHECK_IN
+  UNKNOWN
+}
+
+enum AttendanceMode {
+  MUST_BE_IN_OFFICE
+  CAN_BE_REMOTE
+  FLEXIBLE
+}
+
+type User {
+  id: ID!
+  email: String!
+  name: String!
+  userPreferences: String
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type Job {
+  id: ID!
+  userId: ID!
+  user: User
+  status: JobStatus!
+  progress: Float!
+  currentStep: String
+  targetDate: String!
+  inputData: String
+  result: String
+  errorMessage: String
+  createdAt: Time!
+  updatedAt: Time!
+  recommendations: [CommuteRecommendation!]
+}
+
+type CalendarEvent {
+  id: ID!
+  userId: ID!
+  user: User
+  summary: String!
+  description: String
+  startTime: Time!
+  endTime: Time!
+  location: String
+  attendees: String
+  meetingType: MeetingType!
+  attendanceMode: AttendanceMode!
+  isAllDay: Boolean!
+  isRecurring: Boolean!
+  googleEventId: String
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type CommuteRecommendation {
+  id: ID!
+  jobId: ID!
+  job: Job
+  optionRank: Int!
+  optionType: CommuteOptionType!
+  commuteStart: Time
+  officeArrival: Time
+  officeDeparture: Time
+  commuteEnd: Time
+  officeDuration: String
+  officeMeetings: String
+  remoteMeetings: String
+  businessRuleCompliance: String
+  perceptionAnalysis: String
+  reasoning: String
+  tradeOffs: String
+  createdAt: Time!
+}
+
+type Query {
+  # Health check
+  health: String!
+  
+  # User queries
+  user(id: ID!): User
+  users: [User!]!
+  
+  # Job queries
+  job(id: ID!): Job
+  jobs(userId: ID): [Job!]!
+  
+  # Calendar event queries
+  calendarEvent(id: ID!): CalendarEvent
+  calendarEvents(userId: ID!): [CalendarEvent!]!
+  
+  # Commute recommendation queries
+  commuteRecommendation(id: ID!): CommuteRecommendation
+  commuteRecommendations(jobId: ID!): [CommuteRecommendation!]!
+}
+
+input CreateUserInput {
+  email: String!
+  name: String!
+  userPreferences: String
+}
+
+input UpdateUserInput {
+  email: String
+  name: String
+  userPreferences: String
+}
+
+input CreateJobInput {
+  userId: ID!
+  targetDate: String!
+  inputData: String
+}
+
+input UpdateJobInput {
+  status: JobStatus
+  progress: Float
+  currentStep: String
+  result: String
+  errorMessage: String
+}
+
+input CreateCalendarEventInput {
+  id: ID!
+  userId: ID!
+  summary: String!
+  description: String
+  startTime: Time!
+  endTime: Time!
+  location: String
+  attendees: String
+  meetingType: MeetingType!
+  attendanceMode: AttendanceMode!
+  isAllDay: Boolean!
+  isRecurring: Boolean!
+  googleEventId: String
+}
+
+type Mutation {
+  # User mutations
+  createUser(input: CreateUserInput!): User!
+  updateUser(id: ID!, input: UpdateUserInput!): User!
+  deleteUser(id: ID!): Boolean!
+  
+  # Job mutations
+  createJob(input: CreateJobInput!): Job!
+  updateJob(id: ID!, input: UpdateJobInput!): Job!
+  deleteJob(id: ID!): Boolean!
+  
+  # Calendar event mutations
+  createCalendarEvent(input: CreateCalendarEventInput!): CalendarEvent!
+  updateCalendarEvent(id: ID!, input: CreateCalendarEventInput!): CalendarEvent!
+  deleteCalendarEvent(id: ID!): Boolean!
+}

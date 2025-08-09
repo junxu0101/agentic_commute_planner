@@ -1,0 +1,66 @@
+scalar DateTime
+
+enum MeetingType {
+  CLIENT_MEETING
+  PRESENTATION
+  TEAM_WORKSHOP
+  INTERVIEW
+  STAKEHOLDER_MEETING
+  ONE_ON_ONE
+  STATUS_UPDATE
+  REVIEW
+  BRAINSTORMING
+  CHECK_IN
+  UNKNOWN
+}
+
+enum AttendanceMode {
+  MUST_BE_IN_OFFICE
+  CAN_BE_REMOTE
+  FLEXIBLE
+}
+
+type CalendarEvent {
+  id: String!
+  summary: String!
+  description: String
+  start: DateTime!
+  end: DateTime!
+  location: String
+  attendees: [String!]!
+  meetingType: MeetingType!
+  attendanceMode: AttendanceMode!
+  isAllDay: Boolean!
+  isRecurring: Boolean!
+}
+
+type CalendarAnalysis {
+  date: String!
+  events: [CalendarEvent!]!
+  officeMeetings: [CalendarEvent!]!
+  remoteMeetings: [CalendarEvent!]!
+  freeTimeBlocks: [TimeBlock!]!
+  coreCollaborationHours: TimeBlock
+}
+
+type TimeBlock {
+  start: DateTime!
+  end: DateTime!
+  duration: String!
+}
+
+input CalendarSyncInput {
+  calendarId: String
+  timeZone: String!
+  startDate: String!
+  endDate: String!
+}
+
+type Query {
+  getCalendarEvents(date: String!): CalendarAnalysis
+  syncCalendar(input: CalendarSyncInput!): Boolean!
+}
+
+type Mutation {
+  refreshCalendarData(date: String!): CalendarAnalysis!
+}

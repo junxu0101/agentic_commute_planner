@@ -1,0 +1,57 @@
+# Where are all the schema files located? globs are supported eg  src/**/*.graphqls
+schema:
+  - schema.graphql
+
+# Where should the generated resolver code file be written?
+resolver:
+  layout: follow-schema
+  dir: pkg/generated
+  package: generated
+
+# Where should any generated models go?
+models:
+  User:
+    model:
+      - github.com/commute-planner/backend/pkg/models.User
+  Job:
+    model:
+      - github.com/commute-planner/backend/pkg/models.Job
+  CalendarEvent:
+    model:
+      - github.com/commute-planner/backend/pkg/models.CalendarEvent
+  CommuteRecommendation:
+    model:
+      - github.com/commute-planner/backend/pkg/models.CommuteRecommendation
+  JobStatus:
+    model:
+      - github.com/commute-planner/backend/pkg/models.JobStatus
+  CommuteOptionType:
+    model:
+      - github.com/commute-planner/backend/pkg/models.CommuteOptionType
+  MeetingType:
+    model:
+      - github.com/commute-planner/backend/pkg/models.MeetingType
+  AttendanceMode:
+    model:
+      - github.com/commute-planner/backend/pkg/models.AttendanceMode
+
+# Where should the generated server code go?
+exec:
+  filename: pkg/generated/generated.go
+  package: generated
+
+# Uncomment to enable federation
+# federation:
+#   filename: graph/generated/federation.go
+#   package: generated
+
+# Where should any generated models go?
+model:
+  filename: pkg/generated/models_gen.go
+  package: generated
+
+# Scalar configuration
+scalars:
+  Time:
+    model:
+      - time.Time

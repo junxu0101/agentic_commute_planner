@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Production overrides
+  frontend:
+    build:
+      target: production
+    ports:
+      - "80:80"
+    environment:
+      - REACT_APP_GATEWAY_URL=https://api.commuteplanner.com/graphql
+      - REACT_APP_WS_URL=wss://api.commuteplanner.com/graphql
+
+  gateway:
+    environment:
+      - NODE_ENV=production
+      - BACKEND_SERVICE_URL=http://backend:8080/graphql
+      - AI_SERVICE_URL=http://ai-service:8000/graphql
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  backend:
+    environment:
+      - DATABASE_URL=${PROD_DATABASE_URL}
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  ai-service:
+    environment:
+      - DATABASE_URL=${PROD_DATABASE_URL}
+      - OPENAI_API_KEY=${PROD_OPENAI_API_KEY}
+      - GOOGLE_MAPS_API_KEY=${PROD_GOOGLE_MAPS_API_KEY}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  postgres:
+    environment:
+      - POSTGRES_USER=${PROD_DB_USER}
+      - POSTGRES_PASSWORD=${PROD_DB_PASSWORD}
+      - POSTGRES_DB=${PROD_DB_NAME}
+    volumes:
+      - prod_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  prod_postgres_data:

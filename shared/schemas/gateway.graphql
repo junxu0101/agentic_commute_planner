@@ -1,0 +1,5 @@
+# Gateway schema that federates all services
+extend type Query {
+  # Health check
+  health: String!
+}

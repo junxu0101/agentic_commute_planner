@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "commute-planner-ai"
+version = "0.1.0"
+description = "Multi-agent AI service for commute planning"
+authors = [{name = "Commute Planner Team"}]
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "langchain>=0.1.0",
+    "langgraph>=0.0.26",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "pydantic>=2.5.0",
+    "psycopg2-binary>=2.9.9",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.25.0",
+    "google-api-python-client>=2.108.0",
+    "googlemaps>=4.10.0",
+    "strawberry-graphql>=0.216.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.11.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

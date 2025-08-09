@@ -1,0 +1,106 @@
+scalar DateTime
+
+enum CommuteOptionType {
+  FULL_DAY_OFFICE
+  STRATEGIC_AFTERNOON
+  FULL_REMOTE_RECOMMENDED
+}
+
+enum ProfessionalImpact {
+  VERY_POSITIVE
+  NEUTRAL_TO_POSITIVE
+  NEUTRAL
+  SLIGHTLY_NEGATIVE
+  NEGATIVE
+}
+
+enum TeamVisibility {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum JobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+type BusinessRuleCompliance {
+  minimumStay: String!
+  arrivalPattern: String!
+  departurePattern: String!
+  coreHoursPresence: String!
+  lunchPattern: String!
+}
+
+type PerceptionAnalysis {
+  professionalImpact: ProfessionalImpact!
+  reasoning: String!
+  teamVisibility: TeamVisibility!
+}
+
+type TradeOffs {
+  pros: [String!]!
+  cons: [String!]!
+}
+
+type CommuteRecommendation {
+  optionRank: Int!
+  type: CommuteOptionType!
+  commuteStart: DateTime
+  officeArrival: DateTime
+  officeDeparture: DateTime
+  commuteEnd: DateTime
+  officeDuration: String!
+  officeMeetings: [String!]!
+  remoteMeetings: [String!]!
+  businessRuleCompliance: BusinessRuleCompliance!
+  perceptionAnalysis: PerceptionAnalysis!
+  reasoning: String!
+  tradeOffs: TradeOffs!
+}
+
+type CommuteRecommendations {
+  recommendations: [CommuteRecommendation!]!
+  generatedAt: DateTime!
+  targetDate: String!
+}
+
+type JobProgress {
+  id: ID!
+  status: JobStatus!
+  progress: Float!
+  currentStep: String!
+  result: CommuteRecommendations
+  error: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input CommuteAnalysisInput {
+  targetDate: String!
+  userPreferences: UserPreferencesInput
+}
+
+input UserPreferencesInput {
+  preferredArrivalTime: String
+  preferredDepartureTime: String
+  minimumOfficeHours: Float
+  avoidLunchTimeArrivals: Boolean
+  prioritizeEarlyArrivals: Boolean
+}
+
+type Query {
+  getJobProgress(jobId: ID!): JobProgress
+  getJobHistory(limit: Int = 10): [JobProgress!]!
+}
+
+type Mutation {
+  analyzeCommute(input: CommuteAnalysisInput!): JobProgress!
+}
+
+type Subscription {
+  jobProgress(jobId: ID!): JobProgress!
+}
