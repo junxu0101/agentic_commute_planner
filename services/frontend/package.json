@@ -9,7 +9,9 @@
     "@types/react-dom": "^18.2.0",
     "graphql": "^16.8.0",
     "graphql-ws": "^5.14.0",
+    "moment": "^2.30.1",
     "react": "^18.2.0",
+    "react-big-calendar": "^1.19.4",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.15.0",
     "react-scripts": "5.0.1",
@@ -43,6 +45,8 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
+    "@types/moment": "^2.11.29",
+    "@types/react-big-calendar": "^1.16.2",
     "eslint": "^8.0.0"
   }
 }

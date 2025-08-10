@@ -49,7 +49,7 @@ const SignupPage: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            🚀 Join Commute Planner
+            Join Commute Planner
           </h1>
           <h2 className="text-xl text-gray-600 mb-4">
             Start Your AI-Powered Journey
@@ -170,15 +170,15 @@ const SignupPage: React.FC = () => {
             </h3>
             <div className="space-y-3 text-sm text-gray-700">
               <div className="flex items-center justify-center space-x-2">
-                <span>🎲</span>
+                <span></span>
                 <span>Smart demo data generation with realistic business scenarios</span>
               </div>
               <div className="flex items-center justify-center space-x-2">
-                <span>🤖</span>
+                <span></span>
                 <span>AI-powered commute analysis with multi-agent workflow</span>
               </div>
               <div className="flex items-center justify-center space-x-2">
-                <span>📊</span>
+                <span></span>
                 <span>Personalized recommendations with detailed reasoning</span>
               </div>
               <div className="flex items-center justify-center space-x-2">

@@ -33,6 +33,7 @@ const JOB_PROGRESS_SUBSCRIPTION = gql`
 interface CommutePlannerWidgetProps {
   enabled: boolean;
   onPlanningStart: () => void;
+  onPlanningComplete?: (results: any) => void;
 }
 
 interface JobProgress {
@@ -47,7 +48,8 @@ interface JobProgress {
 
 const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({ 
   enabled, 
-  onPlanningStart 
+  onPlanningStart,
+  onPlanningComplete
 }) => {
   const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(
@@ -112,25 +114,36 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
                 } else {
                   // Success or demo fallback
                   setJobResults(result);
+                  if (onPlanningComplete) {
+                    onPlanningComplete(result);
+                  }
                 }
               } catch (e) {
                 console.error('Failed to parse job result JSON:', e);
                 // Fallback to generic message
-                setJobResults({ 
+                const fallbackResult = { 
                   status: 'completed', 
                   message: 'Commute analysis completed successfully!',
                   jobId: progress.jobId,
                   timestamp: progress.timestamp
-                });
+                };
+                setJobResults(fallbackResult);
+                if (onPlanningComplete) {
+                  onPlanningComplete(fallbackResult);
+                }
               }
             } else {
               // No result provided, show generic completion
-              setJobResults({ 
+              const genericResult = { 
                 status: 'completed', 
                 message: 'Commute analysis completed successfully!',
                 jobId: progress.jobId,
                 timestamp: progress.timestamp
-              });
+              };
+              setJobResults(genericResult);
+              if (onPlanningComplete) {
+                onPlanningComplete(genericResult);
+              }
             }
             
             setActiveJobId(null); // Stop subscription
@@ -245,7 +258,7 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
       <div className="space-y-4">
         <div>
           <label htmlFor="targetDate" className="form-label">
-            📅 Select Target Date for Commute Planning
+            🗓 Select Target Date for Commute Planning
           </label>
           <input
             id="targetDate"
@@ -325,7 +338,7 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
               </>
             ) : (
               <>
-                <span>🚀</span>
+                <span></span>
                 Plan My Commute for {formatDateSafe(selectedDate)}
               </>
             )}
@@ -411,14 +424,28 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
               ✅ AI analysis completed for {formatDateSafe(selectedDate)}
             </div>
             
-            {/* Display recommendations here */}
+            {/* Success Message */}
             <div className="bg-white border rounded-lg p-4">
               <div className="text-sm text-gray-700">
-                <strong>Analysis Results:</strong>
-                <pre className="mt-2 text-xs overflow-auto">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-green-600">✅</span>
+                  <strong>Commute recommendations generated successfully!</strong>
+                </div>
+                <p className="text-gray-600">
+                  View your personalized commute options in the panel on the right, 
+                  and see them overlaid on your calendar above.
+                </p>
+              </div>
+              
+              {/* Debug section (collapsible) */}
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
+                  🔧 Show debug data
+                </summary>
+                <pre className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded overflow-auto max-h-32 border">
                   {JSON.stringify(jobResults, null, 2)}
                 </pre>
-              </div>
+              </details>
             </div>
             
             <button 

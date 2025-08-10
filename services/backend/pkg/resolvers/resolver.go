@@ -40,7 +40,7 @@ type QueryResolver interface {
 	Users(ctx context.Context) ([]*models.User, error)
 	Job(ctx context.Context, id string) (*models.Job, error)
 	Jobs(ctx context.Context, userID *string) ([]*models.Job, error)
-	CalendarEvents(ctx context.Context, userID string) ([]*models.CalendarEvent, error)
+	CalendarEvents(ctx context.Context, userID string, targetDate *string) ([]*models.CalendarEvent, error)
 	CommuteRecommendations(ctx context.Context, jobID string) ([]*models.CommuteRecommendation, error)
 }
 
@@ -427,11 +427,26 @@ func (r *Resolver) DeleteJob(ctx context.Context, id string) (bool, error) {
 }
 
 // CalendarEvent resolvers
-func (r *Resolver) CalendarEvents(ctx context.Context, userID string) ([]*models.CalendarEvent, error) {
-	query := `SELECT id, user_id, summary, description, start_time, end_time, location, attendees, meeting_type, attendance_mode, is_all_day, is_recurring, google_event_id, created_at, updated_at 
-	          FROM calendar_events WHERE user_id = $1 ORDER BY start_time ASC`
+func (r *Resolver) CalendarEvents(ctx context.Context, userID string, targetDate *string) ([]*models.CalendarEvent, error) {
+	var query string
+	var args []interface{}
 	
-	rows, err := r.db.Query(query, userID)
+	if targetDate != nil {
+		// Filter by specific date - events that start or occur on the target date
+		// Parse the target date and match events that fall on that day
+		query = `SELECT id, user_id, summary, description, start_time, end_time, location, attendees, meeting_type, attendance_mode, is_all_day, is_recurring, google_event_id, created_at, updated_at 
+		         FROM calendar_events 
+		         WHERE user_id = $1 AND DATE(start_time) = $2::date
+		         ORDER BY start_time ASC`
+		args = []interface{}{userID, (*targetDate)[:10]} // Extract just YYYY-MM-DD part
+	} else {
+		// No date filter - return all user events
+		query = `SELECT id, user_id, summary, description, start_time, end_time, location, attendees, meeting_type, attendance_mode, is_all_day, is_recurring, google_event_id, created_at, updated_at 
+		         FROM calendar_events WHERE user_id = $1 ORDER BY start_time ASC`
+		args = []interface{}{userID}
+	}
+	
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching calendar events: %w", err)
 	}

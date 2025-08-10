@@ -68,7 +68,7 @@ const DemoDataWidget: React.FC<DemoDataWidgetProps> = ({ onDataGenerated, hasExi
             </>
           ) : (
             <>
-              <span>🎲</span>
+              <span></span>
               Generate Demo Calendar Data
             </>
           )}
@@ -89,7 +89,7 @@ const DemoDataWidget: React.FC<DemoDataWidgetProps> = ({ onDataGenerated, hasExi
             <h3 className="font-semibold text-green-800">Existing Demo Data Found!</h3>
           </div>
           <div className="text-sm text-green-700 space-y-1">
-            <div>📅 You already have demo calendar events</div>
+            <div>🗓 You already have demo calendar events</div>
             <div>🎯 Ready for AI commute analysis</div>
             <div>💡 Click "Regenerate" to create fresh demo data</div>
           </div>
@@ -105,7 +105,7 @@ const DemoDataWidget: React.FC<DemoDataWidgetProps> = ({ onDataGenerated, hasExi
               <h3 className="font-semibold text-green-800">Demo Data Generated Successfully!</h3>
             </div>
             <div className="text-sm text-green-700 space-y-1">
-              <div>📅 Generated <strong>{generatedData.calendarEventsGenerated}</strong> realistic calendar events</div>
+              <div>🗓 Generated <strong>{generatedData.calendarEventsGenerated}</strong> realistic calendar events</div>
               <div>🗓️ Date range: <strong>{generatedData.dateRange}</strong></div>
               <div>🎯 Ready for AI commute analysis</div>
             </div>

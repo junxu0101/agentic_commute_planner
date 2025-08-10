@@ -111,7 +111,7 @@ type Query {
   
   # Calendar event queries
   calendarEvent(id: ID!): CalendarEvent
-  calendarEvents(userId: ID!): [CalendarEvent!]!
+  calendarEvents(userId: ID!, targetDate: String): [CalendarEvent!]!
   
   # Commute recommendation queries
   commuteRecommendation(id: ID!): CommuteRecommendation

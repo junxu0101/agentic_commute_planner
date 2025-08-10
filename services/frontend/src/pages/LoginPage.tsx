@@ -35,7 +35,7 @@ const LoginPage: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            🚀 Commute Planner
+            Commute Planner
           </h1>
           <h2 className="text-xl text-gray-600 mb-4">
             AI-Powered Commute Intelligence
@@ -122,28 +122,28 @@ const LoginPage: React.FC = () => {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
               <div className="flex items-start space-x-2">
-                <span>🎲</span>
+                <span></span>
                 <div>
                   <div className="font-semibold">Generate Demo Data</div>
                   <div>Realistic calendar events with business rules</div>
                 </div>
               </div>
               <div className="flex items-start space-x-2">
-                <span>📅</span>
+                <span></span>
                 <div>
                   <div className="font-semibold">Plan Commute</div>
                   <div>Pick date → AI analyzes → Get recommendations</div>
                 </div>
               </div>
               <div className="flex items-start space-x-2">
-                <span>🤖</span>
+                <span></span>
                 <div>
                   <div className="font-semibold">AI Processing</div>
                   <div>Real-time progress with WebSocket updates</div>
                 </div>
               </div>
               <div className="flex items-start space-x-2">
-                <span>📊</span>
+                <span></span>
                 <div>
                   <div className="font-semibold">Smart Results</div>
                   <div>Office vs remote recommendations with reasoning</div>
@@ -157,14 +157,14 @@ const LoginPage: React.FC = () => {
         <div className="card bg-gray-50 border border-gray-200">
           <div className="text-center">
             <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              🚀 Coming Soon: Real Calendar Integration
+              Coming Soon: Real Calendar Integration
             </h3>
             <div className="flex justify-center space-x-4">
               <button 
                 disabled 
                 className="btn btn-secondary opacity-50 cursor-not-allowed text-sm"
               >
-                📅 Sign in with Google
+                🗓 Sign in with Google
               </button>
               <button 
                 disabled 

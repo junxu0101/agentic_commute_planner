@@ -139,7 +139,13 @@ func main() {
 			// Handle calendarEvents query
 			if req.Variables != nil {
 				if userID, ok := req.Variables["userId"].(string); ok {
-					events, err := resolver.CalendarEvents(r.Context(), userID)
+					// Check for optional targetDate parameter
+					var targetDate *string
+					if td, ok := req.Variables["targetDate"].(string); ok {
+						targetDate = &td
+					}
+					
+					events, err := resolver.CalendarEvents(r.Context(), userID, targetDate)
 					if err != nil {
 						response.Errors = []string{err.Error()}
 					} else {

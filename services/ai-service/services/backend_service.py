@@ -133,11 +133,11 @@ class BackendService:
             return None
     
     async def get_user_calendar_events(self, user_id: str, target_date: str) -> List[Dict[str, Any]]:
-        """Get user calendar events from backend"""
+        """Get user calendar events from backend for specific date (used by AI for commute planning)"""
         
         query = """
-        query GetCalendarEvents($userId: ID!) {
-            calendarEvents(userId: $userId) {
+        query GetCalendarEvents($userId: ID!, $targetDate: String!) {
+            calendarEvents(userId: $userId, targetDate: $targetDate) {
                 id
                 summary
                 description
@@ -154,10 +154,19 @@ class BackendService:
         """
         
         try:
-            data = await self.make_graphql_request(query, {"userId": user_id})
-            return data.get("calendarEvents", [])
+            variables = {
+                "userId": user_id,
+                "targetDate": target_date
+            }
+            logger.info(f"Sending GraphQL query with variables: {variables}")
+            logger.info(f"Query: {query.strip()}")
+            
+            data = await self.make_graphql_request(query, variables)
+            events = data.get("calendarEvents", [])
+            logger.info(f"✅ Retrieved {len(events)} calendar events for user {user_id} on {target_date}")
+            return events
         except Exception as error:
-            logger.error(f"Failed to get calendar events for user {user_id}: {error}")
+            logger.error(f"Failed to get calendar events for user {user_id} on {target_date}: {error}")
             return []
     
     async def save_commute_recommendations(self, job_id: str, recommendations: List[Dict[str, Any]]) -> bool:
