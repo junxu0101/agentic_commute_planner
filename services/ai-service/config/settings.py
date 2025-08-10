@@ -33,8 +33,10 @@ class Settings(BaseSettings):
         "http://localhost:8080/graphql"
     )
     
-    # External API settings
+    # AI & External API settings
     openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+    anthropic_api_key: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
+    use_ai_workflow: bool = os.getenv("USE_AI_WORKFLOW", "true").lower() == "true"
     google_maps_api_key: Optional[str] = os.getenv("GOOGLE_MAPS_API_KEY")
     google_calendar_credentials_path: Optional[str] = os.getenv(
         "GOOGLE_CALENDAR_CREDENTIALS_PATH"

@@ -103,7 +103,16 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
                 // Parse the JSON result string
                 const result = JSON.parse(progress.result);
                 console.log('📋 Parsed job result:', result);
-                setJobResults(result);
+                
+                // Handle different result types
+                if (result.status === 'error' && result.workflow_type === 'ai_required_failed') {
+                  // Real user AI failure - show error instead of fake data
+                  setError(result.error_message || 'AI service is temporarily unavailable. Please try again later.');
+                  setJobResults(null);
+                } else {
+                  // Success or demo fallback
+                  setJobResults(result);
+                }
               } catch (e) {
                 console.error('Failed to parse job result JSON:', e);
                 // Fallback to generic message
@@ -177,7 +186,19 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
           input: {
             userId: user.id,
             targetDate: selectedDate,
-            inputData: 'Commute planning request from demo data'
+            inputData: JSON.stringify({
+              type: 'commute_planning_request',
+              source: 'frontend_widget',
+              preferences: {
+                transport_modes: ['car', 'public_transit'],
+                time_flexibility: 'moderate',
+                cost_preference: 'balanced'
+              },
+              context: {
+                request_origin: 'demo_interface',
+                user_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+              }
+            })
           }
         }
       });
@@ -341,7 +362,20 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
 
             {/* Status */}
             <div className="text-xs text-blue-600">
-              Status: {currentProgress.status} • Last update: {new Date(currentProgress.timestamp).toLocaleTimeString()}
+              Status: {currentProgress.status} • Last update: {
+                (() => {
+                  try {
+                    const date = new Date(currentProgress.timestamp);
+                    if (isNaN(date.getTime())) {
+                      return 'Unknown';
+                    }
+                    return date.toLocaleTimeString();
+                  } catch (e) {
+                    console.error('Timestamp parsing error:', currentProgress.timestamp, e);
+                    return 'Unknown';
+                  }
+                })()
+              }
             </div>
 
             {/* Error handling */}

@@ -33,7 +33,7 @@ async function startServer() {
 
   // Set up Redis progress listener for GraphQL subscriptions
   redis.subscribeToAllProgress((progress: JobProgress) => {
-    console.log(`Received progress update for job ${progress.jobId}: ${progress.progress}%`);
+    console.log(`Received progress update for job ${progress.jobId}: ${Math.round(progress.progress * 100)}%`);
     
     // Publish to GraphQL subscription for specific job
     pubsub.publish(`JOB_PROGRESS_${progress.jobId}`, { jobProgress: progress });

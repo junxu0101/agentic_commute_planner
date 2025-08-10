@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/commute-planner/backend/internal/config"
@@ -134,6 +135,22 @@ func main() {
 			} else {
 				response.Data = map[string]interface{}{"users": users}
 			}
+		case strings.Contains(req.Query, "calendarEvents"):
+			// Handle calendarEvents query
+			if req.Variables != nil {
+				if userID, ok := req.Variables["userId"].(string); ok {
+					events, err := resolver.CalendarEvents(r.Context(), userID)
+					if err != nil {
+						response.Errors = []string{err.Error()}
+					} else {
+						response.Data = map[string]interface{}{"calendarEvents": events}
+					}
+				} else {
+					response.Errors = []string{"userId variable is required for calendarEvents query"}
+				}
+			} else {
+				response.Errors = []string{"variables are required for calendarEvents query"}
+			}
 		default:
 			// Handle job mutations
 			if req.Variables != nil {
@@ -155,7 +172,27 @@ func main() {
 						} else {
 							response.Data = map[string]interface{}{"createJob": job}
 						}
-						break
+						
+						// Send job to Redis queue for processing
+						if job != nil {
+							jobData := map[string]interface{}{
+								"job_id":      job.ID,
+								"user_id":     job.UserID,
+								"target_date": job.TargetDate,
+								"input_data":  input["inputData"], // Pass original input_data
+							}
+							
+							// Add job to Redis queue
+							if err := resolver.QueueJob(r.Context(), jobData); err != nil {
+								log.Printf("Failed to queue job %s: %v", job.ID, err)
+							} else {
+								log.Printf("Added job %s to Redis queue for processing", job.ID)
+							}
+						}
+						
+						// Return early to prevent "not supported" error
+						json.NewEncoder(w).Encode(response)
+						return
 					}
 				}
 				
@@ -191,7 +228,10 @@ func main() {
 						} else {
 							response.Data = map[string]interface{}{"updateJob": job}
 						}
-						break
+						
+						// Return early to prevent "not supported" error
+						json.NewEncoder(w).Encode(response)
+						return
 					}
 				}
 			}

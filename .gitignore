@@ -88,3 +88,7 @@ coverage/
 
 # Generated files
 *.generated.*
+
+# Debug and test files
+debug_frontend.html
+ai_result_*.json

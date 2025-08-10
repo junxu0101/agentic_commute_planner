@@ -75,26 +75,11 @@ class ScheduleAnalyzerAgent:
             return state
             
     def _normalize_db_events(self, db_events):
-        """Normalize database events to consistent format"""
-        normalized = []
+        """Normalize database events to consistent format using shared utility"""
+        from utils.event_normalizer import EventNormalizer
         
-        for event in db_events:
-            normalized_event = {
-                "id": event["id"],
-                "summary": event["summary"],
-                "description": event.get("description", ""),
-                "start_time": event["start_time"].isoformat() if hasattr(event["start_time"], 'isoformat') else str(event["start_time"]),
-                "end_time": event["end_time"].isoformat() if hasattr(event["end_time"], 'isoformat') else str(event["end_time"]),
-                "location": event.get("location", ""),
-                "attendees": event.get("attendees", []),
-                "meeting_type": event.get("meeting_type", "UNKNOWN"),
-                "attendance_mode": event.get("attendance_mode", "FLEXIBLE"),
-                "is_all_day": event.get("is_all_day", False),
-                "is_recurring": event.get("is_recurring", False)
-            }
-            normalized.append(normalized_event)
-            
-        return normalized
+        logger.info(f"Normalizing {len(db_events)} database events (legacy method)")
+        return EventNormalizer.normalize_event_list(db_events, source="backend")
         
     def _normalize_mock_events(self, mock_events):
         """Normalize mock events to consistent format (already in correct format)"""

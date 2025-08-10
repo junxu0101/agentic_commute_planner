@@ -137,7 +137,7 @@ class CommuteWorkflow:
             "status": "IN_PROGRESS",
             "progress": state["progress_percentage"],
             "currentStep": state["progress_step"],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
             "details": {
                 "calendar_events_count": len(state.get("calendar_events", [])),
                 "meeting_classifications_count": len(state.get("meeting_classifications", [])),

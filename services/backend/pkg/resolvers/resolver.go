@@ -58,6 +58,21 @@ func (r *Resolver) Health(ctx context.Context) (string, error) {
 	return "OK", nil
 }
 
+// QueueJob adds a job to the Redis queue for processing
+func (r *Resolver) QueueJob(ctx context.Context, jobData map[string]interface{}) error {
+	jobID := jobData["job_id"].(string)
+	userID := jobData["user_id"].(string)
+	targetDate := jobData["target_date"].(string)
+	
+	var inputData *string
+	if data, exists := jobData["input_data"]; exists && data != nil {
+		dataStr := data.(string)
+		inputData = &dataStr
+	}
+	
+	return r.redisClient.AddJobToQueue(ctx, jobID, userID, targetDate, inputData)
+}
+
 // User resolvers
 func (r *Resolver) User(ctx context.Context, id string) (*models.User, error) {
 	query := `SELECT id, email, name, user_preferences, created_at, updated_at FROM users WHERE id = $1`
@@ -292,10 +307,11 @@ func (r *Resolver) CreateJob(ctx context.Context, input CreateJobInput) (*models
 	id := uuid.New().String()
 	now := time.Now()
 	
-	// Handle JSON input data - if it's a string, wrap it in JSON
+	// Handle JSON input data - pass JSON string directly to PostgreSQL
 	var inputDataJSON interface{}
-	if input.InputData != nil {
-		inputDataJSON = `{"data":"` + *input.InputData + `"}`
+	if input.InputData != nil && *input.InputData != "" {
+		// InputData is already a JSON string from frontend, pass it directly
+		inputDataJSON = *input.InputData
 	}
 	
 	query := `INSERT INTO jobs (id, user_id, status, progress, target_date, input_data, created_at, updated_at) 
@@ -321,14 +337,8 @@ func (r *Resolver) CreateJob(ctx context.Context, input CreateJobInput) (*models
 		return nil, fmt.Errorf("error creating job: %w", err)
 	}
 	
-	// Add job to Redis queue for AI service processing
-	if r.redisClient != nil {
-		err = r.redisClient.AddJobToQueue(ctx, job.ID, job.UserID, job.TargetDate, input.InputData)
-		if err != nil {
-			// Log error but don't fail job creation - job is still in database
-			fmt.Printf("Warning: Failed to add job %s to Redis queue: %v\n", job.ID, err)
-		}
-	}
+	// Note: Job queueing to Redis is handled in main.go after successful GraphQL mutation
+	// to avoid duplicate queueing
 	
 	return job, nil
 }

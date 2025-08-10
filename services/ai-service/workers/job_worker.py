@@ -12,7 +12,7 @@ import traceback
 from config.settings import get_settings
 from services.redis_service import RedisService
 from services.backend_service import backend_service
-from graphs.commute_workflow import CommuteWorkflow
+from graphs.workflow_orchestrator import create_workflow_orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,8 @@ class JobWorker:
         self.running = False
         self.active_jobs: Dict[str, asyncio.Task] = {}
         
-        # Initialize workflow
-        self.workflow = CommuteWorkflow(redis_service, backend_service)
+        # Initialize workflow orchestrator (handles both rule-based and AI workflows)
+        self.workflow_orchestrator = create_workflow_orchestrator(redis_service)
         
     async def start(self) -> None:
         """Start the job worker with event-driven processing"""
@@ -124,7 +124,7 @@ class JobWorker:
                         "jobId": job_id,
                         "status": "FAILED",
                         "errorMessage": str(e),
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.utcnow().isoformat() + "Z"
                     }
                 )
                 
@@ -153,19 +153,35 @@ class JobWorker:
                     "status": "IN_PROGRESS",
                     "progress": 0.0,
                     "currentStep": "Starting workflow",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
                 }
             )
             
-            # Execute the LangGraph workflow
+            # Handle input_data (can be either dict or JSON string)
+            raw_input_data = job_data.get("input_data", {})
+            if isinstance(raw_input_data, str):
+                try:
+                    parsed_input_data = json.loads(raw_input_data)
+                    logger.info(f"Parsed input_data from JSON string for job {job_id}")
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse input_data as JSON, using as raw string: {raw_input_data}")
+                    parsed_input_data = {"raw_input": raw_input_data}
+            elif isinstance(raw_input_data, dict):
+                parsed_input_data = raw_input_data
+                logger.info(f"Using input_data as dict for job {job_id}")
+            else:
+                logger.warning(f"Unexpected input_data type for job {job_id}: {type(raw_input_data)}")
+                parsed_input_data = {"raw_input": str(raw_input_data)}
+            
+            # Execute workflow via orchestrator (AI-powered or rule-based)
             workflow_input = {
                 "job_id": job_id,
                 "user_id": user_id,
                 "target_date": target_date,
-                "input_data": job_data.get("input_data", {})
+                "input_data": parsed_input_data
             }
             
-            result = await self.workflow.execute(workflow_input)
+            result = await self.workflow_orchestrator.execute(workflow_input)
             
             # Update job status to completed
             await self.backend_service.update_job_status(
@@ -185,7 +201,7 @@ class JobWorker:
                     "progress": 1.0,
                     "currentStep": "Workflow completed",
                     "result": json.dumps(result) if result else None,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
                 }
             )
             
