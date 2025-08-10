@@ -365,7 +365,17 @@ const CommutePlannerWidget: React.FC<CommutePlannerWidgetProps> = ({
               Status: {currentProgress.status} • Last update: {
                 (() => {
                   try {
-                    const date = new Date(currentProgress.timestamp);
+                    let date: Date;
+                    
+                    // Handle both ISO strings and Unix timestamps (in milliseconds)
+                    if (typeof currentProgress.timestamp === 'string' && /^\d+$/.test(currentProgress.timestamp)) {
+                      // It's a Unix timestamp in milliseconds (all digits)
+                      date = new Date(parseInt(currentProgress.timestamp));
+                    } else {
+                      // It's an ISO string or other date format
+                      date = new Date(currentProgress.timestamp);
+                    }
+                    
                     if (isNaN(date.getTime())) {
                       return 'Unknown';
                     }

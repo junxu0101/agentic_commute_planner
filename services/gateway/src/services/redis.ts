@@ -12,7 +12,7 @@ export interface JobProgress {
   currentStep?: string;
   result?: any;
   errorMessage?: string;
-  timestamp: Date;
+  timestamp: string;
 }
 
 export interface JobData {
@@ -60,7 +60,7 @@ export class RedisService {
       await this.subscriber.subscribe(config.redisProgressChannel, (message) => {
         try {
           const progress: JobProgress = JSON.parse(message);
-          progress.timestamp = new Date(progress.timestamp);
+          // Keep timestamp as ISO string for frontend parsing compatibility
           
           // Notify all listeners for this job
           const listener = this.progressListeners.get(progress.jobId);

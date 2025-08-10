@@ -172,7 +172,7 @@ export const resolvers = {
           status: 'PENDING',
           progress: 0,
           currentStep: 'Queued for processing',
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         };
 
         pubsub.publish('JOB_PROGRESS', { jobProgress: initialProgress });
