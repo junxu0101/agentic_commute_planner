@@ -170,12 +170,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('Authentication required');
     }
 
+    // Get user's timezone for timezone-aware demo data generation
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
     const response = await fetch('http://localhost:8080/demo/generate', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        userTimezone: userTimezone
+      }),
     });
 
     const result = await response.json();

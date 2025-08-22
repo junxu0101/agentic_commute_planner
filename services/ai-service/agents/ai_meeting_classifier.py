@@ -6,6 +6,7 @@ import logging
 import json
 from datetime import datetime
 from typing import Dict, Any, List
+from zoneinfo import ZoneInfo
 
 from langchain_core.language_models import BaseLanguageModel
 from langchain.prompts import ChatPromptTemplate
@@ -25,10 +26,10 @@ class AIMeetingClassifier:
             ("system", """You are an expert meeting analyst AI. Your job is to classify meetings for optimal work location decisions.
 
 For each meeting, determine:
-1. **Office Requirement Level**: 
-   - MUST_BE_IN_OFFICE: Client meetings, presentations, interviews, workshops requiring in-person presence
-   - CAN_BE_REMOTE: 1:1s, standups, reviews, brainstorming that work well remotely  
-   - FLEXIBLE: Could work either way depending on context
+1. **Attendance Requirement Level**: 
+   - MUST_BE_IN_PERSON: Client meetings, presentations, interviews, workshops requiring physical presence
+   - REMOTE_WITH_VIDEO: Team meetings, 1:1s, brainstorming requiring full attention and video
+   - CAN_JOIN_WHILE_COMMUTING: Status updates, all-hands, announcements where passive listening is sufficient
 
 2. **Business Impact**: High/Medium/Low importance for business outcomes
 3. **Collaboration Intensity**: How much interactive collaboration is needed
@@ -36,13 +37,18 @@ For each meeting, determine:
 5. **Technology Requirements**: Specialized equipment, whiteboards, etc.
 
 Provide detailed reasoning for each classification."""),
-            ("human", """Classify these meetings for work location optimization:
+            ("human", """Classify these meetings for work location optimization in {user_timezone} timezone:
 
 MEETINGS TO CLASSIFY:
 {meetings_json}
 
+TIMEZONE CONTEXT:
+- User timezone: {user_timezone}
+- All meeting times are shown in the user's local timezone
+- Consider time-of-day patterns for meeting effectiveness
+
 For each meeting, provide:
-1. Recommended attendance mode (MUST_BE_IN_OFFICE/CAN_BE_REMOTE/FLEXIBLE)
+1. Recommended attendance mode (MUST_BE_IN_PERSON/REMOTE_WITH_VIDEO/CAN_JOIN_WHILE_COMMUTING)
 2. Confidence level (0.0-1.0) 
 3. Detailed reasoning
 4. Key factors that influenced the decision
@@ -57,6 +63,7 @@ Return a structured JSON response with classifications.""")
         """
         
         calendar_events = state.get("calendar_events", [])
+        user_timezone = state.get("user_timezone", "UTC")
         
         logger.info(f"AI classifying {len(calendar_events)} meetings")
         
@@ -71,7 +78,7 @@ Return a structured JSON response with classifications.""")
                 return state
             
             # AI-POWERED CLASSIFICATION: Use LLM to understand meeting requirements
-            ai_classifications = await self._classify_meetings_with_ai(calendar_events)
+            ai_classifications = await self._classify_meetings_with_ai(calendar_events, user_timezone)
             
             # Process AI classifications into standard format
             meeting_classifications = self._process_ai_classifications(calendar_events, ai_classifications)
@@ -106,8 +113,8 @@ Return a structured JSON response with classifications.""")
             state["error_message"] = f"AI meeting classification failed: {str(e)}"
             return state
     
-    async def _classify_meetings_with_ai(self, meetings: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Use LLM to classify meetings intelligently"""
+    async def _classify_meetings_with_ai(self, meetings: List[Dict[str, Any]], user_timezone: str = "UTC") -> Dict[str, Any]:
+        """Use LLM to classify meetings intelligently with timezone awareness"""
         
         try:
             # Format meetings for AI analysis
@@ -124,9 +131,10 @@ Return a structured JSON response with classifications.""")
                 for m in meetings
             ], indent=2)
             
-            # Create the prompt
+            # Create the prompt with timezone context
             messages = self.classification_prompt.format_messages(
-                meetings_json=meetings_json
+                meetings_json=meetings_json,
+                user_timezone=user_timezone
             )
             
             # Get AI classification
@@ -184,7 +192,7 @@ Return a structured JSON response with classifications.""")
                 "requires_office": requires_office,
                 "confidence": confidence,
                 "reasoning": reasoning,
-                "attendance_mode": "MUST_BE_IN_OFFICE" if requires_office else "CAN_BE_REMOTE"
+                "attendance_mode": "MUST_BE_IN_PERSON" if requires_office else "REMOTE_WITH_VIDEO"
             }
         
         return classifications
@@ -204,6 +212,23 @@ Return a structured JSON response with classifications.""")
             # Ensure meeting is properly normalized before processing
             normalized_meeting = self._ensure_normalized_meeting(meeting)
             
+            # Check if meeting already has attendance_mode from demo data (respect existing constraints)
+            existing_attendance_mode = normalized_meeting.get("attendance_mode")
+            
+            # Use existing attendance mode if set, otherwise use AI classification
+            if existing_attendance_mode and existing_attendance_mode not in ["UNKNOWN", "FLEXIBLE"]:
+                final_attendance_mode = existing_attendance_mode
+                final_requires_office = existing_attendance_mode in ["MUST_BE_IN_PERSON", "MUST_BE_IN_OFFICE"]
+                final_confidence = 0.9  # High confidence for pre-set demo data
+                final_reasoning = f"Demo data specifies {existing_attendance_mode}"
+                classification_method = "demo_data_specified"
+            else:
+                final_requires_office = ai_result.get("requires_office", False)
+                final_attendance_mode = ai_result.get("attendance_mode", "REMOTE_WITH_VIDEO")
+                final_confidence = ai_result.get("confidence", 0.7)
+                final_reasoning = ai_result.get("reasoning", "AI classification applied")
+                classification_method = "ai_llm_powered"
+            
             classification = {
                 "meeting_id": meeting_id,
                 "summary": normalized_meeting.get("summary", ""),
@@ -212,16 +237,16 @@ Return a structured JSON response with classifications.""")
                 "duration_hours": self._calculate_duration_hours(normalized_meeting),
                 "attendee_count": len(normalized_meeting.get("attendees", [])),
                 
-                # AI-powered decisions
-                "requires_office": ai_result.get("requires_office", False),
-                "attendance_mode": ai_result.get("attendance_mode", "CAN_BE_REMOTE"),
+                # Final classification decisions (respects demo data)
+                "requires_office": final_requires_office,
+                "attendance_mode": final_attendance_mode,
                 "business_impact": ai_result.get("business_impact", "Medium"),
                 "collaboration_intensity": ai_result.get("collaboration_intensity", "Medium"),
                 
-                # AI metadata
-                "ai_confidence": ai_result.get("confidence", 0.7),
-                "ai_reasoning": ai_result.get("reasoning", "Standard classification applied"),
-                "classification_method": "ai_llm_powered"
+                # Classification metadata
+                "ai_confidence": final_confidence,
+                "ai_reasoning": final_reasoning,
+                "classification_method": classification_method
             }
             
             classifications.append(classification)

@@ -6,6 +6,7 @@ import logging
 import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
+from zoneinfo import ZoneInfo
 
 from langchain_core.language_models import BaseLanguageModel
 from langchain.prompts import ChatPromptTemplate
@@ -37,13 +38,18 @@ Consider these optimization factors:
 7. **Work-Life Balance**: Stress reduction, family time preservation
 
 Generate creative, practical solutions that go beyond basic time calculations."""),
-            ("human", """Optimize commute strategies for these office presence options:
+            ("human", """Optimize commute strategies for these office presence options in {user_timezone} timezone:
 
 OFFICE PRESENCE BLOCKS:
 {presence_blocks_json}
 
 TARGET DATE: {target_date}
 USER CONTEXT: {user_id}
+TIMEZONE CONTEXT:
+- User timezone: {user_timezone}
+- All times should be interpreted in the user's local timezone
+- Schedule optimization considers local rush hour patterns
+- Meeting times are displayed in user's timezone for clarity
 
 OPTIMIZATION GOALS:
 - Minimize total travel time while maximizing reliability
@@ -72,8 +78,9 @@ Generate detailed, actionable commute strategies.""")
         presence_blocks = state.get("office_presence_blocks", [])
         target_date = state.get("target_date", "")
         user_id = state.get("user_id", "")
+        user_timezone = state.get("user_timezone", "UTC")
         
-        logger.info(f"AI optimizing commute for {len(presence_blocks)} presence options")
+        logger.info(f"AI optimizing commute for {len(presence_blocks)} presence options in {user_timezone} timezone")
         
         try:
             # Update progress
@@ -90,10 +97,10 @@ Generate detailed, actionable commute strategies.""")
                 self.maps_tool = MockGoogleMapsTool(user_id)
             
             # AI-POWERED OPTIMIZATION: Use LLM for intelligent commute planning
-            ai_optimizations = await self._optimize_with_ai(presence_blocks, target_date, user_id)
+            ai_optimizations = await self._optimize_with_ai(presence_blocks, target_date, user_id, user_timezone)
             
             # Process AI optimizations with real route data
-            commute_options = await self._process_ai_optimizations(ai_optimizations, presence_blocks, target_date)
+            commute_options = await self._process_ai_optimizations(ai_optimizations, presence_blocks, target_date, user_timezone)
             
             # Update state with AI insights
             state["commute_options"] = commute_options
@@ -114,8 +121,8 @@ Generate detailed, actionable commute strategies.""")
             state["error_message"] = f"AI commute optimization failed: {str(e)}"
             return state
     
-    async def _optimize_with_ai(self, presence_blocks: List[Dict[str, Any]], target_date: str, user_id: str) -> Dict[str, Any]:
-        """Use LLM for intelligent commute optimization"""
+    async def _optimize_with_ai(self, presence_blocks: List[Dict[str, Any]], target_date: str, user_id: str, user_timezone: str = "UTC") -> Dict[str, Any]:
+        """Use LLM for intelligent commute optimization with timezone awareness"""
         
         try:
             # Format presence blocks for AI analysis
@@ -133,11 +140,12 @@ Generate detailed, actionable commute strategies.""")
                 for block in presence_blocks
             ], indent=2)
             
-            # Create the prompt
+            # Create the prompt with timezone context
             messages = self.optimization_prompt.format_messages(
                 presence_blocks_json=blocks_json,
                 target_date=target_date,
-                user_id=user_id
+                user_id=user_id,
+                user_timezone=user_timezone
             )
             
             # Get AI optimization analysis
@@ -167,7 +175,7 @@ Generate detailed, actionable commute strategies.""")
                 "environmental_analysis": {}
             }
     
-    async def _process_ai_optimizations(self, ai_data: Dict[str, Any], presence_blocks: List[Dict[str, Any]], target_date: str) -> List[Dict[str, Any]]:
+    async def _process_ai_optimizations(self, ai_data: Dict[str, Any], presence_blocks: List[Dict[str, Any]], target_date: str, user_timezone: str = "UTC") -> List[Dict[str, Any]]:
         """Process AI optimizations with real route data"""
         
         commute_options = []
@@ -175,62 +183,86 @@ Generate detailed, actionable commute strategies.""")
         for block in presence_blocks:
             if block.get("type") == "FULL_REMOTE_RECOMMENDED":
                 # Create remote work option
-                remote_option = await self._create_remote_option(block, ai_data, target_date)
+                remote_option = await self._create_remote_option(block, ai_data, target_date, user_timezone)
                 commute_options.append(remote_option)
             else:
                 # Create office commute option with AI optimization
-                office_option = await self._create_office_option(block, ai_data, target_date)
+                office_option = await self._create_office_option(block, ai_data, target_date, user_timezone)
                 commute_options.append(office_option)
         
         return commute_options
     
-    async def _create_office_option(self, presence_block: Dict[str, Any], ai_data: Dict[str, Any], target_date: str) -> Dict[str, Any]:
-        """Create AI-optimized office commute option"""
+    async def _create_office_option(self, presence_block: Dict[str, Any], ai_data: Dict[str, Any], target_date: str, user_timezone: str = "UTC") -> Dict[str, Any]:
+        """Create AI-optimized office commute option with timezone awareness"""
         
         try:
             arrival_hour = presence_block.get("arrival_hour", 9)
             departure_hour = presence_block.get("departure_hour", 17)
             
-            # Parse target date for route calculations
+            # Parse target date to extract the intended date (ignore timezone for date extraction)
             if target_date.endswith('Z'):
                 target_dt = datetime.fromisoformat(target_date.replace('Z', '+00:00'))
             else:
                 target_dt = datetime.fromisoformat(target_date)
             
-            # Create datetime objects without timezone info for calculations
-            base_date = target_dt.replace(hour=int(arrival_hour), minute=0, second=0, microsecond=0, tzinfo=None)
-            target_dt = base_date
-            office_arrival_dt = target_dt
-            office_departure_dt = target_dt.replace(hour=int(departure_hour))
+            # Get user timezone object
+            user_tz = ZoneInfo(user_timezone)
             
-            # Get AI-informed optimal departure time
+            # Extract just the date part and create new datetime in user's timezone
+            # This ensures we're working with the intended date (e.g., Aug 14) in the user's timezone
+            target_date_only = target_dt.date()
+            office_arrival_dt = datetime.combine(target_date_only, datetime.min.time()).replace(tzinfo=user_tz)
+            office_arrival_dt = office_arrival_dt.replace(hour=int(arrival_hour), minute=0, second=0, microsecond=0)
+            
+            office_departure_dt = datetime.combine(target_date_only, datetime.min.time()).replace(tzinfo=user_tz)
+            office_departure_dt = office_departure_dt.replace(hour=int(departure_hour), minute=0, second=0, microsecond=0)
+            
+            # DEBUG: Log the calculated times with call stack info
+            import traceback
+            logger.error(f"=== TIMEZONE DEBUG START ===")
+            logger.error(f"CALL STACK: {traceback.format_stack()[-3:-1]}")
+            logger.error(f"INPUT - Target date: {target_date}")
+            logger.error(f"INPUT - User timezone: {user_timezone}")
+            logger.error(f"INPUT - Arrival hour: {arrival_hour}, Departure hour: {departure_hour}")
+            logger.error(f"INPUT - Presence block: {presence_block}")
+            logger.error(f"CALCULATED - Office arrival (local): {office_arrival_dt}")
+            logger.error(f"CALCULATED - Office arrival (UTC): {office_arrival_dt.astimezone(ZoneInfo('UTC'))}")
+            logger.error(f"CALCULATED - Office departure (local): {office_departure_dt}")
+            logger.error(f"CALCULATED - Office departure (UTC): {office_departure_dt.astimezone(ZoneInfo('UTC'))}")
+            logger.error(f"=== TIMEZONE DEBUG END ===")
+            
+            # Get AI-informed optimal departure time (convert to UTC for API)
             commute_start_info = await self.maps_tool.calculate_optimal_departure_time(
                 destination="office",
-                target_arrival=office_arrival_dt.isoformat() + "Z",
+                target_arrival=office_arrival_dt.astimezone(ZoneInfo("UTC")).isoformat(),
                 origin="home"
             )
             
-            # Get return journey with AI considerations
+            # Get return journey with AI considerations (convert to UTC for API)
             return_commute_info = await self.maps_tool.get_route_duration(
                 origin="office",
                 destination="home",
-                departure_time=office_departure_dt.isoformat() + "Z"
+                departure_time=office_departure_dt.astimezone(ZoneInfo("UTC")).isoformat()
             )
             
-            # Parse commute times safely
+            # Parse commute times and convert to user timezone
             optimal_departure = commute_start_info["optimal_departure"]
             if optimal_departure.endswith('Z'):
-                commute_start_dt = datetime.fromisoformat(optimal_departure.replace('Z', '+00:00')).replace(tzinfo=None)
+                commute_start_dt = datetime.fromisoformat(optimal_departure.replace('Z', '+00:00'))
             else:
-                commute_start_dt = datetime.fromisoformat(optimal_departure).replace(tzinfo=None)
+                commute_start_dt = datetime.fromisoformat(optimal_departure)
             
+            # Convert UTC commute start time to user timezone
+            commute_start_dt = commute_start_dt.astimezone(user_tz)
+            
+            # Calculate end time in user timezone
             commute_end_dt = office_departure_dt + timedelta(seconds=return_commute_info["duration"]["value"])
             
-            # Get AI-enhanced route alternatives
+            # Get AI-enhanced route alternatives (convert to UTC for API)
             route_alternatives = await self.maps_tool.get_multiple_route_options(
                 origin="home",
                 destination="office", 
-                departure_time=commute_start_dt.isoformat() + "Z"
+                departure_time=commute_start_dt.astimezone(ZoneInfo("UTC")).isoformat()
             )
             
             # Calculate AI-informed efficiency metrics
@@ -246,12 +278,25 @@ Generate detailed, actionable commute strategies.""")
                 "day_efficiency": round(office_duration_timedelta.total_seconds() / total_day_duration.total_seconds(), 2)
             }
             
+            # DEBUG: Log final output before returning
+            final_commute_start = commute_start_dt.astimezone(ZoneInfo("UTC")).isoformat()
+            final_office_arrival = office_arrival_dt.astimezone(ZoneInfo("UTC")).isoformat()
+            final_office_departure = office_departure_dt.astimezone(ZoneInfo("UTC")).isoformat()
+            final_commute_end = commute_end_dt.astimezone(ZoneInfo("UTC")).isoformat()
+            
+            logger.error(f"=== FINAL OUTPUT DEBUG ===")
+            logger.error(f"OUTPUT - commute_start: {final_commute_start}")
+            logger.error(f"OUTPUT - office_arrival: {final_office_arrival}")
+            logger.error(f"OUTPUT - office_departure: {final_office_departure}")
+            logger.error(f"OUTPUT - commute_end: {final_commute_end}")
+            logger.error(f"=== FINAL OUTPUT DEBUG END ===")
+
             return {
                 "option_type": presence_block["type"],
-                "commute_start": commute_start_dt.isoformat() + "Z",
-                "office_arrival": office_arrival_dt.isoformat() + "Z",
-                "office_departure": office_departure_dt.isoformat() + "Z",
-                "commute_end": commute_end_dt.isoformat() + "Z",
+                "commute_start": final_commute_start,
+                "office_arrival": final_office_arrival,
+                "office_departure": final_office_departure,
+                "commute_end": final_commute_end,
                 "office_duration": self._format_duration(office_duration_timedelta),
                 "office_meetings": presence_block.get("office_meetings", []),
                 "remote_meetings": presence_block.get("remote_meetings", []),
@@ -299,10 +344,14 @@ Generate detailed, actionable commute strategies.""")
             
         except Exception as e:
             logger.error(f"Error creating AI office option: {e}")
+            logger.error(f"Presence block: {presence_block}")
+            logger.error(f"Target date: {target_date}, User timezone: {user_timezone}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return self._create_fallback_office_option(presence_block)
     
-    async def _create_remote_option(self, presence_block: Dict[str, Any], ai_data: Dict[str, Any], target_date: str) -> Dict[str, Any]:
-        """Create AI-enhanced remote work option"""
+    async def _create_remote_option(self, presence_block: Dict[str, Any], ai_data: Dict[str, Any], target_date: str, user_timezone: str = "UTC") -> Dict[str, Any]:
+        """Create AI-enhanced remote work option with timezone awareness"""
         
         return {
             "option_type": "FULL_REMOTE_RECOMMENDED",

@@ -163,6 +163,15 @@ class BackendService:
             
             data = await self.make_graphql_request(query, variables)
             events = data.get("calendarEvents", [])
+            
+            # Defensive programming: ensure events is always a list
+            if events is None:
+                logger.warning(f"Backend returned null for calendarEvents, defaulting to empty list")
+                events = []
+            elif not isinstance(events, list):
+                logger.warning(f"Backend returned non-list for calendarEvents: {type(events)}, defaulting to empty list")
+                events = []
+            
             logger.info(f"✅ Retrieved {len(events)} calendar events for user {user_id} on {target_date}")
             return events
         except Exception as error:

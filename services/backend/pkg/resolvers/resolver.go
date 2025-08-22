@@ -433,12 +433,19 @@ func (r *Resolver) CalendarEvents(ctx context.Context, userID string, targetDate
 	
 	if targetDate != nil {
 		// Filter by specific date - events that start or occur on the target date
-		// Parse the target date and match events that fall on that day
+		// Use timezone-aware date filtering for timestamptz columns
+		// Extract YYYY-MM-DD and create timezone-aware range
+		dateStr := (*targetDate)[:10] // Extract just YYYY-MM-DD part
+		
+		// Query events that fall within the target date in the stored timezone
+		// This works because our times are stored with timezone info (timestamptz)
 		query = `SELECT id, user_id, summary, description, start_time, end_time, location, attendees, meeting_type, attendance_mode, is_all_day, is_recurring, google_event_id, created_at, updated_at 
 		         FROM calendar_events 
-		         WHERE user_id = $1 AND DATE(start_time) = $2::date
+		         WHERE user_id = $1 
+		           AND start_time >= $2::date 
+		           AND start_time < ($2::date + INTERVAL '1 day')
 		         ORDER BY start_time ASC`
-		args = []interface{}{userID, (*targetDate)[:10]} // Extract just YYYY-MM-DD part
+		args = []interface{}{userID, dateStr}
 	} else {
 		// No date filter - return all user events
 		query = `SELECT id, user_id, summary, description, start_time, end_time, location, attendees, meeting_type, attendance_mode, is_all_day, is_recurring, google_event_id, created_at, updated_at 

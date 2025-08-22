@@ -49,6 +49,15 @@ class CommuteWorkflow:
         user_id = workflow_input["user_id"]
         target_date = workflow_input["target_date"]
         
+        # DEBUG: Log complete workflow input to trace timezone data flow
+        logger.error(f"=== WORKFLOW INPUT DEBUG ===")
+        logger.error(f"WORKFLOW INPUT - Complete input: {workflow_input}")
+        logger.error(f"WORKFLOW INPUT - job_id: {job_id}")
+        logger.error(f"WORKFLOW INPUT - user_id: {user_id}")
+        logger.error(f"WORKFLOW INPUT - target_date: {target_date}")
+        logger.error(f"WORKFLOW INPUT - input_data: {workflow_input.get('input_data', {})}")
+        logger.error(f"=== WORKFLOW INPUT DEBUG END ===")
+        
         logger.info(f"Starting commute workflow for job {job_id}")
         
         # Initialize workflow state
