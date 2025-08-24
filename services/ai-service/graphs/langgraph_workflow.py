@@ -30,6 +30,7 @@ class AICommuteState(BaseModel):
     job_id: str
     user_id: str
     target_date: str
+    user_timezone: str = "UTC"
     input_data: Dict[str, Any] = Field(default_factory=dict)
     
     # Progress tracking
@@ -120,12 +121,34 @@ class LangGraphCommuteWorkflow:
         
         logger.info(f"Starting AI commute workflow for job {job_id}")
         
+        # Extract user timezone - job_worker already extracted it from context
+        input_data = workflow_input.get("input_data", {})
+        user_timezone = workflow_input.get("user_timezone")
+        
+        # Fail fast if timezone is missing - don't silently corrupt data with UTC fallback
+        if not user_timezone or user_timezone == "UTC":
+            error_msg = f"Missing or invalid user_timezone in workflow_input. Got: {user_timezone}. This is required for timezone-aware processing."
+            logger.error(f"CRITICAL ERROR: {error_msg}")
+            logger.error(f"workflow_input keys: {list(workflow_input.keys())}")
+            raise ValueError(error_msg)
+        
+        # DEBUG: Log LangGraph workflow input
+        logger.error(f"=== LANGGRAPH WORKFLOW INPUT DEBUG ===")
+        logger.error(f"LANGGRAPH - Complete workflow_input: {workflow_input}")
+        logger.error(f"LANGGRAPH - job_id: {job_id}")
+        logger.error(f"LANGGRAPH - user_id: {user_id}")
+        logger.error(f"LANGGRAPH - target_date: {target_date}")
+        logger.error(f"LANGGRAPH - input_data: {input_data}")
+        logger.error(f"LANGGRAPH - user_timezone: {user_timezone}")
+        logger.error(f"=== LANGGRAPH WORKFLOW INPUT DEBUG END ===")
+        
         # Initialize AI state
         initial_state = AICommuteState(
             job_id=job_id,
             user_id=user_id,
             target_date=target_date,
-            input_data=workflow_input.get("input_data", {}),
+            user_timezone=user_timezone,
+            input_data=input_data,
         )
         
         try:

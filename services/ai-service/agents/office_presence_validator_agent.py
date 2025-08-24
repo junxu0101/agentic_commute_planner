@@ -22,6 +22,14 @@ class OfficePresenceValidatorAgent:
     PROFESSIONAL_ARRIVAL_BEFORE = 10  # Arriving before 10 AM is professional
     PROFESSIONAL_DEPARTURE_AFTER = 16  # Staying past 4 PM is professional
     
+    # Company policy configurations
+    COMPANY_POLICIES = {
+        "mandatory_office_days": ["Tuesday", "Thursday"],  # Example: Tuesdays and Thursdays required
+        "minimum_office_days_per_week": 3,  # Example: At least 3 days per week
+        "team_collaboration_days": {"Wednesday": "Engineering Team Sync"},
+        "all_hands_days": {"first_tuesday": "Monthly All-Hands"}
+    }
+    
     def __init__(self):
         pass
         
@@ -45,9 +53,16 @@ class OfficePresenceValidatorAgent:
             state["progress_percentage"] = 0.5
             
             meeting_classifications = state.get("meeting_classifications", [])
+            target_date = state.get("target_date", "")
             
-            # Generate possible office presence blocks
+            # Check company policy requirements first
+            policy_requirements = self._check_company_policy(target_date)
+            
+            # Generate possible office presence blocks (considering both meetings and policy)
             presence_blocks = self._generate_office_presence_options(meeting_classifications)
+            
+            # Apply company policy requirements
+            presence_blocks = self._apply_policy_requirements(presence_blocks, policy_requirements)
             
             # Validate each block against business rules
             validated_blocks = []
@@ -91,8 +106,14 @@ class OfficePresenceValidatorAgent:
             "type": "FULL_DAY_OFFICE",
             "arrival_hour": 8.0,
             "departure_hour": 18.0,
+            "office_duration_hours": 10.0,
             "office_meetings": office_meetings,
-            "remote_meetings": [c for c in classifications if not c["requires_office"]]
+            "remote_meetings": [c for c in classifications if not c["requires_office"]],
+            "business_rule_compliance": {},
+            "compliance_score": 80,
+            "is_valid": True,
+            "force_include": False,
+            "warnings": []
         })
         
         # Option 2: Strategic morning (early arrival for morning meetings)
@@ -103,12 +124,19 @@ class OfficePresenceValidatorAgent:
                 datetime.fromisoformat(m["start_time"].replace('Z', '+00:00')).hour - 0.5  # 30 min buffer
                 for m in morning_meetings
             )
+            departure_hour = max(13.0, earliest_meeting_hour + self.MINIMUM_OFFICE_HOURS)
             options.append({
                 "type": "STRATEGIC_MORNING",
                 "arrival_hour": max(7.0, earliest_meeting_hour),
-                "departure_hour": max(13.0, earliest_meeting_hour + self.MINIMUM_OFFICE_HOURS),
+                "departure_hour": departure_hour,
+                "office_duration_hours": departure_hour - max(7.0, earliest_meeting_hour),
                 "office_meetings": morning_meetings,
-                "remote_meetings": [c for c in classifications if not c["requires_office"] or c not in morning_meetings]
+                "remote_meetings": [c for c in classifications if not c["requires_office"] or c not in morning_meetings],
+                "business_rule_compliance": {},
+                "compliance_score": 75,
+                "is_valid": True,
+                "force_include": False,
+                "warnings": []
             })
             
         # Option 3: Strategic afternoon (for afternoon meetings)
@@ -125,8 +153,14 @@ class OfficePresenceValidatorAgent:
                 "type": "STRATEGIC_AFTERNOON", 
                 "arrival_hour": arrival_hour,
                 "departure_hour": latest_meeting_hour,
+                "office_duration_hours": latest_meeting_hour - arrival_hour,
                 "office_meetings": afternoon_meetings,
-                "remote_meetings": [c for c in classifications if not c["requires_office"] or c not in afternoon_meetings]
+                "remote_meetings": [c for c in classifications if not c["requires_office"] or c not in afternoon_meetings],
+                "business_rule_compliance": {},
+                "compliance_score": 75,
+                "is_valid": True,
+                "force_include": False,
+                "warnings": []
             })
             
         # Option 4: Core hours presence (10 AM - 4 PM minimum)
@@ -291,7 +325,7 @@ class OfficePresenceValidatorAgent:
         
         # Check if any meetings absolutely require office presence
         critical_office_meetings = [c for c in classifications 
-                                  if c["requires_office"] and c["confidence"] == "high"]
+                                  if c.get("attendance_mode") == "MUST_BE_IN_PERSON" and (c.get("ai_confidence", 0) > 0.8 or c.get("confidence", "") == "high")]
         
         if critical_office_meetings:
             compliance_score = 0  # Low score if missing critical office meetings
@@ -339,3 +373,97 @@ class OfficePresenceValidatorAgent:
         if display_hour == 0:
             display_hour = 12
         return f"{display_hour}:{m:02d} {period}"
+    
+    def _check_company_policy(self, target_date: str) -> Dict[str, Any]:
+        """Check if company policy requires office presence on target date"""
+        
+        try:
+            # Parse target date to get day of week
+            if target_date.endswith('Z'):
+                date_dt = datetime.fromisoformat(target_date.replace('Z', '+00:00'))
+            else:
+                date_dt = datetime.fromisoformat(target_date)
+            
+            day_name = date_dt.strftime('%A')  # Monday, Tuesday, etc.
+            
+            policy_requirements = {
+                "requires_office_presence": False,
+                "policy_reason": None,
+                "flexibility_allowed": True,
+                "minimum_hours_required": self.MINIMUM_OFFICE_HOURS
+            }
+            
+            # Check mandatory office days
+            if day_name in self.COMPANY_POLICIES["mandatory_office_days"]:
+                policy_requirements.update({
+                    "requires_office_presence": True,
+                    "policy_reason": f"Company policy requires office presence on {day_name}s",
+                    "flexibility_allowed": False,
+                    "minimum_hours_required": 8.0  # Full day required
+                })
+                
+            # Check team collaboration days
+            if day_name in self.COMPANY_POLICIES["team_collaboration_days"]:
+                collaboration_reason = self.COMPANY_POLICIES["team_collaboration_days"][day_name]
+                policy_requirements.update({
+                    "requires_office_presence": True,
+                    "policy_reason": f"Team collaboration day: {collaboration_reason}",
+                    "flexibility_allowed": True,  # Can leave early if no meetings
+                    "minimum_hours_required": 6.0  # Partial day OK
+                })
+            
+            logger.info(f"Policy check for {day_name}: {policy_requirements}")
+            return policy_requirements
+            
+        except Exception as e:
+            logger.error(f"Error checking company policy: {e}")
+            return {
+                "requires_office_presence": False,
+                "policy_reason": None,
+                "flexibility_allowed": True,
+                "minimum_hours_required": self.MINIMUM_OFFICE_HOURS
+            }
+    
+    def _apply_policy_requirements(self, presence_blocks: List[Dict[str, Any]], policy_requirements: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Apply company policy requirements to presence blocks"""
+        
+        if not policy_requirements["requires_office_presence"]:
+            return presence_blocks  # No policy constraints
+        
+        # If policy requires office presence, ensure at least one office option exists
+        has_office_option = any(block["type"] != "FULL_REMOTE_RECOMMENDED" for block in presence_blocks)
+        
+        if not has_office_option:
+            # Create a policy-compliant office block
+            policy_block = {
+                "type": "POLICY_REQUIRED_OFFICE_PRESENCE",
+                "arrival_hour": 9.0,
+                "departure_hour": 17.0,
+                "office_duration_hours": policy_requirements["minimum_hours_required"],
+                "office_meetings": [],
+                "remote_meetings": [],
+                "business_rule_compliance": {
+                    "company_policy": {
+                        "status": "REQUIRED",
+                        "message": policy_requirements["policy_reason"]
+                    }
+                },
+                "compliance_score": 95,  # High score for policy compliance
+                "is_valid": True,
+                "force_include": True,
+                "warnings": [],
+                "policy_driven": True
+            }
+            presence_blocks.append(policy_block)
+        
+        # Adjust compliance scores based on policy requirements
+        for block in presence_blocks:
+            if block["type"] == "FULL_REMOTE_RECOMMENDED" and policy_requirements["requires_office_presence"]:
+                # Lower score for remote work when policy requires office
+                block["compliance_score"] = max(block["compliance_score"] - 30, 10)
+                block["warnings"].append(f"Policy violation: {policy_requirements['policy_reason']}")
+            elif block["type"] != "FULL_REMOTE_RECOMMENDED" and policy_requirements["requires_office_presence"]:
+                # Boost score for office presence when required by policy
+                block["compliance_score"] = min(block["compliance_score"] + 15, 100)
+        
+        return presence_blocks

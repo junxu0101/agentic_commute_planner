@@ -161,10 +161,12 @@ class MockGoogleMapsTool:
     ) -> Dict[str, Any]:
         """Calculate optimal departure time to arrive by target time"""
         
-        # Parse target arrival time and handle timezone properly
-        if target_arrival.endswith('Z'):
+        # Parse target arrival time using standard ISO format handling
+        # Python's fromisoformat handles both 'Z' and '+00:00' correctly since Python 3.11
+        try:
             target_dt = datetime.fromisoformat(target_arrival.replace('Z', '+00:00'))
-        else:
+        except ValueError:
+            # Fallback for any edge cases
             target_dt = datetime.fromisoformat(target_arrival)
         
         # Get route duration for target arrival time

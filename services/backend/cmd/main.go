@@ -11,6 +11,7 @@ import (
 	"github.com/commute-planner/backend/pkg/auth"
 	"github.com/commute-planner/backend/pkg/database"
 	"github.com/commute-planner/backend/pkg/handlers"
+	"github.com/commute-planner/backend/pkg/models"
 	"github.com/commute-planner/backend/pkg/redis"
 	"github.com/commute-planner/backend/pkg/resolvers"
 	"github.com/gorilla/mux"
@@ -149,6 +150,10 @@ func main() {
 					if err != nil {
 						response.Errors = []string{err.Error()}
 					} else {
+						// Ensure we always return an array, never null
+						if events == nil {
+							events = []*models.CalendarEvent{}
+						}
 						response.Data = map[string]interface{}{"calendarEvents": events}
 					}
 				} else {

@@ -6,6 +6,7 @@ import logging
 import json
 from datetime import datetime
 from typing import Dict, Any, List
+from zoneinfo import ZoneInfo
 
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage
@@ -38,10 +39,15 @@ For each calendar event, analyze:
 5. Stakeholder involvement and business impact
 
 Provide structured analysis that will help determine optimal work location decisions."""),
-            ("human", """Analyze these calendar events for {date}:
+            ("human", """Analyze these calendar events for {date} in {user_timezone} timezone:
 
 CALENDAR EVENTS:
 {events_json}
+
+TIMEZONE CONTEXT:
+- User timezone: {user_timezone}
+- All event times should be interpreted in the user's local timezone
+- UTC timestamps from database are converted for user's reference
 
 Please provide:
 1. Overall day structure analysis
@@ -52,6 +58,41 @@ Please provide:
 Format your response as structured analysis, not just a list.""")
         ])
     
+    def _convert_events_to_user_timezone(self, events: List[Dict[str, Any]], user_timezone: str) -> List[Dict[str, Any]]:
+        """Convert UTC event timestamps to user's timezone for AI interpretation"""
+        converted_events = []
+        
+        for event in events:
+            converted_event = event.copy()
+            
+            # Convert start_time if present
+            if event.get('start_time'):
+                try:
+                    # Parse UTC timestamp
+                    utc_dt = datetime.fromisoformat(event['start_time'].replace('Z', '+00:00'))
+                    # Convert to user timezone
+                    user_dt = utc_dt.astimezone(ZoneInfo(user_timezone))
+                    converted_event['start_time'] = user_dt.strftime('%Y-%m-%d %H:%M:%S %Z')
+                    converted_event['start_time_display'] = user_dt.strftime('%I:%M %p')
+                except Exception as e:
+                    logger.warning(f"Could not convert start_time {event['start_time']}: {e}")
+            
+            # Convert end_time if present
+            if event.get('end_time'):
+                try:
+                    # Parse UTC timestamp
+                    utc_dt = datetime.fromisoformat(event['end_time'].replace('Z', '+00:00'))
+                    # Convert to user timezone
+                    user_dt = utc_dt.astimezone(ZoneInfo(user_timezone))
+                    converted_event['end_time'] = user_dt.strftime('%Y-%m-%d %H:%M:%S %Z')
+                    converted_event['end_time_display'] = user_dt.strftime('%I:%M %p')
+                except Exception as e:
+                    logger.warning(f"Could not convert end_time {event['end_time']}: {e}")
+            
+            converted_events.append(converted_event)
+        
+        return converted_events
+    
     async def analyze_schedule(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
         AI-powered calendar analysis using LLMs for intelligent understanding
@@ -59,6 +100,7 @@ Format your response as structured analysis, not just a list.""")
         
         user_id = state["user_id"]
         target_date = state["target_date"]
+        user_timezone = state.get("user_timezone", "UTC")
         
         logger.info(f"AI analyzing schedule for user {user_id} on {target_date}")
         
@@ -89,7 +131,7 @@ Format your response as structured analysis, not just a list.""")
                 return state
             
             # AI-POWERED ANALYSIS: Use LLM to understand the events
-            ai_analysis = await self._analyze_events_with_ai(calendar_events, target_date)
+            ai_analysis = await self._analyze_events_with_ai(calendar_events, target_date, user_timezone)
             
             # Update state with both events and AI insights
             state["calendar_events"] = calendar_events
@@ -137,17 +179,21 @@ Format your response as structured analysis, not just a list.""")
             # Return empty list rather than crash
             return []
     
-    async def _analyze_events_with_ai(self, events: List[Dict[str, Any]], target_date: str) -> Dict[str, Any]:
+    async def _analyze_events_with_ai(self, events: List[Dict[str, Any]], target_date: str, user_timezone: str = "UTC") -> Dict[str, Any]:
         """Use LLM to analyze calendar events intelligently"""
         
         try:
-            # Format events for AI analysis
-            events_json = json.dumps(events, indent=2)
+            # Convert events to user timezone for better AI interpretation
+            timezone_aware_events = self._convert_events_to_user_timezone(events, user_timezone)
             
-            # Create the prompt
+            # Format events for AI analysis
+            events_json = json.dumps(timezone_aware_events, indent=2)
+            
+            # Create the prompt with timezone context
             messages = self.analysis_prompt.format_messages(
                 date=target_date,
-                events_json=events_json
+                events_json=events_json,
+                user_timezone=user_timezone
             )
             
             # Get AI analysis

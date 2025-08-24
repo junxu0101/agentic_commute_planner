@@ -51,52 +51,60 @@ type MeetingTemplate struct {
 
 // Smart meeting templates with business logic
 var meetingTemplates = []MeetingTemplate{
-	// Must be in-office meetings (high impact)
+	// Must be in-person meetings (location-specific)
 	{
-		Summary:        "Q4 Client Presentation - Acme Corp",
+		Summary:        "Onsite Client Presentation - Acme Corp Office",
 		MeetingType:    "CLIENT_MEETING",
-		AttendanceMode: "MUST_BE_IN_OFFICE", 
+		AttendanceMode: "MUST_BE_IN_PERSON", 
 		DurationHours:  2.0,
 		Attendees:      8,
-		Description:    "Quarterly business review with Acme Corp leadership team",
+		Description:    "In-person quarterly review at client's downtown office",
 	},
 	{
-		Summary:        "Product Demo - Enterprise Customer",
-		MeetingType:    "PRESENTATION",
-		AttendanceMode: "MUST_BE_IN_OFFICE",
+		Summary:        "Onsite Interview - Senior Engineer",
+		MeetingType:    "INTERVIEW",
+		AttendanceMode: "MUST_BE_IN_PERSON",
+		DurationHours:  1.5,
+		Attendees:      4,
+		Description:    "On-site technical interview with candidate",
+	},
+	{
+		Summary:        "Hands-on Lab Session - Hardware Testing",
+		MeetingType:    "WORKSHOP",
+		AttendanceMode: "MUST_BE_IN_PERSON",
+		DurationHours:  3.0,
+		Attendees:      6,
+		Description:    "Physical hardware testing requiring lab equipment",
+	},
+	// Remote meetings requiring video
+	{
+		Summary:        "Client Presentation - Remote Demo",
+		MeetingType:    "CLIENT_MEETING",
+		AttendanceMode: "REMOTE_WITH_VIDEO",
 		DurationHours:  1.5,
 		Attendees:      6,
-		Description:    "Live product demonstration for potential enterprise customer",
+		Description:    "Product demonstration via video conference",
+	},
+	{
+		Summary:        "Remote Interview - Product Manager",
+		MeetingType:    "INTERVIEW",
+		AttendanceMode: "REMOTE_WITH_VIDEO",
+		DurationHours:  1.0,
+		Attendees:      3,
+		Description:    "Video interview for product manager role",
 	},
 	{
 		Summary:        "Team Workshop - Sprint Planning",
 		MeetingType:    "TEAM_WORKSHOP", 
-		AttendanceMode: "MUST_BE_IN_OFFICE",
-		DurationHours:  3.0,
-		Attendees:      12,
-		Description:    "In-person collaborative sprint planning session",
-	},
-	{
-		Summary:        "Senior Engineer Interview",
-		MeetingType:    "INTERVIEW",
-		AttendanceMode: "MUST_BE_IN_OFFICE",
-		DurationHours:  4.0,
-		Attendees:      4,
-		Description:    "On-site technical interview with candidate",
-	},
-	// Can be remote meetings (flexible)
-	{
-		Summary:        "Daily Standup",
-		MeetingType:    "CHECK_IN",
-		AttendanceMode: "CAN_BE_REMOTE",
-		DurationHours:  0.5,
+		AttendanceMode: "REMOTE_WITH_VIDEO",
+		DurationHours:  2.0,
 		Attendees:      8,
-		Description:    "Daily team sync and progress update",
+		Description:    "Interactive sprint planning session",
 	},
 	{
 		Summary:        "1:1 with Manager",
 		MeetingType:    "ONE_ON_ONE",
-		AttendanceMode: "CAN_BE_REMOTE",
+		AttendanceMode: "REMOTE_WITH_VIDEO",
 		DurationHours:  1.0,
 		Attendees:      2,
 		Description:    "Weekly one-on-one check-in",
@@ -104,28 +112,49 @@ var meetingTemplates = []MeetingTemplate{
 	{
 		Summary:        "Code Review Session",
 		MeetingType:    "REVIEW",
-		AttendanceMode: "CAN_BE_REMOTE",
+		AttendanceMode: "REMOTE_WITH_VIDEO",
 		DurationHours:  1.5,
 		Attendees:      4,
 		Description:    "Technical code review and discussion",
 	},
 	{
-		Summary:        "Project Status Update",
-		MeetingType:    "STATUS_UPDATE",
-		AttendanceMode: "CAN_BE_REMOTE",
-		DurationHours:  1.0,
-		Attendees:      6,
-		Description:    "Weekly project progress review",
-	},
-	// Brainstorming sessions
-	{
 		Summary:        "Feature Brainstorming - Mobile App",
 		MeetingType:    "BRAINSTORMING",
-		AttendanceMode: "FLEXIBLE",
-		DurationHours:  2.0,
+		AttendanceMode: "REMOTE_WITH_VIDEO",
+		DurationHours:  1.5,
 		Attendees:      5,
 		Description:    "Creative session for new mobile features",
 	},
+	// Can join while commuting (passive listening)
+	{
+		Summary:        "All-Hands Meeting - Q3 Results",
+		MeetingType:    "ALL_HANDS",
+		AttendanceMode: "CAN_JOIN_WHILE_COMMUTING",
+		DurationHours:  1.0,
+		Attendees:      50,
+		Description:    "Company-wide updates and announcements",
+	},
+	{
+		Summary:        "Weekly Status Update",
+		MeetingType:    "STATUS_UPDATE",
+		AttendanceMode: "CAN_JOIN_WHILE_COMMUTING",
+		DurationHours:  0.5,
+		Attendees:      12,
+		Description:    "Project progress review - mostly listening",
+	},
+	{
+		Summary:        "Daily Standup",
+		MeetingType:    "CHECK_IN",
+		AttendanceMode: "CAN_JOIN_WHILE_COMMUTING",
+		DurationHours:  0.25,
+		Attendees:      8,
+		Description:    "Brief team sync - can listen while commuting",
+	},
+}
+
+// DemoRequest represents the request payload for demo data generation
+type DemoRequest struct {
+	UserTimezone string `json:"userTimezone,omitempty"`
 }
 
 // GenerateDemoData creates realistic calendar events for the authenticated user
@@ -148,8 +177,34 @@ func (h *DemoHandler) GenerateDemoData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user's preferred timezone from database first, then fall back to request
+	var userPreferredTimezone string
+	err := h.db.QueryRow("SELECT preferred_timezone FROM users WHERE id = $1", user.ID).Scan(&userPreferredTimezone)
+	if err != nil {
+		userPreferredTimezone = "UTC" // Default fallback
+	}
+	
+	// Parse request body to get browser timezone (as backup)
+	var demoReq DemoRequest
+	if err := json.NewDecoder(r.Body).Decode(&demoReq); err != nil {
+		demoReq.UserTimezone = userPreferredTimezone // Use DB preferred timezone
+	}
+	
+	// Use user's preferred timezone from DB, fallback to browser timezone, then UTC
+	timezoneToUse := userPreferredTimezone
+	if timezoneToUse == "UTC" && demoReq.UserTimezone != "" && demoReq.UserTimezone != "UTC" {
+		timezoneToUse = demoReq.UserTimezone
+	}
+	
+	// Validate and parse timezone
+	userLocation, err := time.LoadLocation(timezoneToUse)
+	if err != nil {
+		// Fallback to UTC if invalid timezone
+		userLocation = time.UTC
+	}
+
 	// Clear existing calendar events for this user (demo data only)
-	_, err := h.db.Exec("DELETE FROM calendar_events WHERE user_id = $1", user.ID)
+	_, err = h.db.Exec("DELETE FROM calendar_events WHERE user_id = $1", user.ID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(DemoResponse{
@@ -159,8 +214,8 @@ func (h *DemoHandler) GenerateDemoData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate smart calendar events
-	events, err := h.generateSmartCalendarEvents(r.Context(), user.ID)
+	// Generate smart calendar events with user's timezone
+	events, err := h.generateSmartCalendarEvents(r.Context(), user.ID, userLocation)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(DemoResponse{
@@ -183,9 +238,10 @@ func (h *DemoHandler) GenerateDemoData(w http.ResponseWriter, r *http.Request) {
 }
 
 // generateSmartCalendarEvents creates intelligent, realistic calendar scenarios
-func (h *DemoHandler) generateSmartCalendarEvents(ctx context.Context, userID string) ([]*models.CalendarEvent, error) {
+func (h *DemoHandler) generateSmartCalendarEvents(ctx context.Context, userID string, userLocation *time.Location) ([]*models.CalendarEvent, error) {
 	var events []*models.CalendarEvent
-	now := time.Now()
+	// Use current time in user's timezone as the base for date generation
+	now := time.Now().In(userLocation)
 	
 	// Generate events for next 14 days (realistic planning window)
 	for dayOffset := 0; dayOffset < 14; dayOffset++ {
@@ -199,7 +255,7 @@ func (h *DemoHandler) generateSmartCalendarEvents(ctx context.Context, userID st
 		// Smart event density based on day of week
 		eventCount := h.getSmartEventCount(targetDate)
 		
-		dayEvents := h.generateDayEvents(ctx, userID, targetDate, eventCount)
+		dayEvents := h.generateDayEvents(ctx, userID, targetDate, eventCount, userLocation)
 		events = append(events, dayEvents...)
 	}
 	
@@ -229,7 +285,7 @@ func (h *DemoHandler) getSmartEventCount(date time.Time) int {
 }
 
 // generateDayEvents creates events for a specific day with business logic
-func (h *DemoHandler) generateDayEvents(ctx context.Context, userID string, date time.Time, eventCount int) []*models.CalendarEvent {
+func (h *DemoHandler) generateDayEvents(ctx context.Context, userID string, date time.Time, eventCount int, userLocation *time.Location) []*models.CalendarEvent {
 	var dayEvents []*models.CalendarEvent
 	usedTimes := make(map[int]bool) // Track used hour slots
 	
@@ -243,8 +299,12 @@ func (h *DemoHandler) generateDayEvents(ctx context.Context, userID string, date
 		// Select appropriate meeting template
 		template := meetingTemplates[rand.Intn(len(meetingTemplates))]
 		
-		startTime := time.Date(date.Year(), date.Month(), date.Day(), hour, 0, 0, 0, time.UTC)
+		// Create time in user's timezone first
+		localTime := time.Date(date.Year(), date.Month(), date.Day(), hour, 0, 0, 0, userLocation)
+		// Convert to UTC explicitly to work around lib/pq timezone binding bug
+		startTime := localTime.UTC()
 		endTime := startTime.Add(time.Duration(template.DurationHours * float64(time.Hour)))
+		
 		
 		// Create realistic calendar event
 		event := &models.CalendarEvent{
@@ -297,9 +357,9 @@ func (h *DemoHandler) getAvailableTimeSlot(usedTimes map[int]bool) int {
 // getSmartLocation returns appropriate location based on attendance mode
 func (h *DemoHandler) getSmartLocation(attendanceMode string) *string {
 	locations := map[string][]string{
-		"MUST_BE_IN_OFFICE": {"Conference Room A", "Boardroom", "Training Room", "Client Meeting Room"},
-		"CAN_BE_REMOTE":     {"Zoom", "Google Meet", "Teams", "Conference Room B (optional)"},
-		"FLEXIBLE":          {"Brainstorm Space", "Open Collaboration Area", "Zoom", "Innovation Lab"},
+		"MUST_BE_IN_PERSON":         {"Conference Room A", "Boardroom", "Training Room", "Client Meeting Room"},
+		"REMOTE_WITH_VIDEO":         {"Zoom", "Google Meet", "Teams", "Conference Room B (optional)"},
+		"CAN_JOIN_WHILE_COMMUTING": {"Zoom (audio only)", "Google Meet (audio)", "Teams (audio)", "Conference call"},
 	}
 	
 	options := locations[attendanceMode]

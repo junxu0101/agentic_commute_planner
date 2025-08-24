@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import traceback
 
 from config.settings import get_settings
@@ -124,7 +124,7 @@ class JobWorker:
                         "jobId": job_id,
                         "status": "FAILED",
                         "errorMessage": str(e),
-                        "timestamp": datetime.utcnow().isoformat() + "Z"
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                 )
                 
@@ -153,7 +153,7 @@ class JobWorker:
                     "status": "IN_PROGRESS",
                     "progress": 0.0,
                     "currentStep": "Starting workflow",
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             )
             
@@ -173,12 +173,20 @@ class JobWorker:
                 logger.warning(f"Unexpected input_data type for job {job_id}: {type(raw_input_data)}")
                 parsed_input_data = {"raw_input": str(raw_input_data)}
             
+            # Extract user timezone from input data for timezone-aware processing
+            user_timezone = "UTC"  # Default fallback
+            if isinstance(parsed_input_data, dict):
+                context = parsed_input_data.get("context", {})
+                if isinstance(context, dict):
+                    user_timezone = context.get("user_timezone", "UTC")
+            
             # Execute workflow via orchestrator (AI-powered or rule-based)
             workflow_input = {
                 "job_id": job_id,
                 "user_id": user_id,
                 "target_date": target_date,
-                "input_data": parsed_input_data
+                "input_data": parsed_input_data,
+                "user_timezone": user_timezone
             }
             
             result = await self.workflow_orchestrator.execute(workflow_input)
@@ -201,7 +209,7 @@ class JobWorker:
                     "progress": 1.0,
                     "currentStep": "Workflow completed",
                     "result": json.dumps(result) if result else None,
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             )
             

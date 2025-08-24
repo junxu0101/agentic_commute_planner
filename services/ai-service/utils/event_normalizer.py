@@ -156,9 +156,7 @@ class EventNormalizer:
             return ""
         
         if isinstance(timestamp, str):
-            # Already a string, ensure it has timezone
-            if timestamp and not timestamp.endswith('Z') and '+' not in timestamp:
-                return timestamp + "Z" if timestamp else ""
+            # Already a string, return as-is if it's a valid timestamp
             return timestamp
         
         if hasattr(timestamp, 'isoformat'):
